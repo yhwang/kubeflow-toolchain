@@ -1,0 +1,185 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: profile-deletion
+spec:
+  params:
+    - name: cluster-name
+      description: schematics workspace name
+    - name: apikey
+      description: apikey
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: resource-group
+      description: resource group
+      default: "kubeflow"
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: delete-profiles
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: CLUSTER_NAME_VAR
+          value: $(params.cluster-name)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          if ! ibmcloud ks cluster config -c "$CLUSTER_NAME_VAR"; then
+            echo " ===== failed to retrieve cluster config  ====="
+            exit 1
+          fi
+
+          kubectl delete profile --all
+
+          # wait for 30 seconds to allow profile manager to work
+          sleep 30
+
+          REV=1
+          ENDTIME=$(date -ud "15 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            ALL_NS=$(kubectl get ns)
+            if ! echo "$ALL_NS" | awk '{print $2}' | grep -iq terminating; then
+              REV=0
+              break;
+            fi
+            echo "$ALL_NS"
+            sleep 10
+          done
+
+          if [[ "$REV" -eq 0 ]]; then
+            echo " =====   Deleted user profiles successfully ====="
+          else
+            echo " =====   Failed to delete user profiles ====="
+          fi
+
+          exit "$REV"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: schematics-workspace-destroy
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: apikey
+      description: apikey
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: resource-group
+      description: resource group
+      default: "kubeflow"
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: apply
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: WS_NAME
+          value: $(params.workspace-name)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          WS_ID=$(ibmcloud schematics workspace list -o json | jq -r '.workspaces[]|select(.name=="'$WS_NAME'").id')
+          if [[ "$WS_ID" == "" ]]; then
+            echo " ===== cannot find workspace: $WS_NAME"
+            exit 1
+          fi
+
+          echo "  ===== About to destroy workspace: $WS_ID ====="
+          ibmcloud schematics destroy -i "$WS_ID" -j -f > destroy-activity.json
+          ACTIVITY_ID=$(jq -r ".activityid" destroy-activity.json 2>/dev/null)
+          if [ "$ACTIVITY_ID" = "" ]; then
+            echo " =====   Failed to destroy workspace ====="
+            cat destroy-activity.json
+            exit 1
+          fi
+
+          echo "activity id: $ACTIVITY_ID"
+          ENDTIME=$(date -ud "120 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            STATUS=$(ibmcloud schematics workspace action -i "$WS_ID" -a "$ACTIVITY_ID" -j | jq -r '.status' 2>/dev/null)
+            if [[ "$STATUS" == "FAILED" ]]; then
+              REV=1
+              break;
+            elif [[ "$STATUS" == "INPROGRESS" ]]; then
+              echo "  Status of activity: $STATUS"
+            elif [[ "$STATUS" == "COMPLETED" ]]; then
+              REV=0
+              break;
+            fi
+            sleep 120
+          done
+
+          if [[ "$REV" -eq 0 ]]; then
+            echo " =====   Destroy workspace finished successfully ====="
+            ibmcloud schematics workspace delete -f -i "$WS_ID"
+            echo " =====   Workspace is deleted ====="
+          else
+            echo " =====   Destroy workspace failed ====="
+          fi
+
+          exit "$REV"

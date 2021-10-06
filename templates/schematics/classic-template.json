@@ -1,0 +1,119 @@
+{
+  "name": "yhwang-classic-kfp-auto",
+  "type": [
+    "terraform_v1.0"
+  ],
+  "description": "deploy kubeflow on IKS",
+  "resource_group": "default",
+  "location": "us-east",
+  "tags": [],
+  "template_repo": {
+    "url": "https://github.com/IBM/auto-kubeflow/tree/main/terraform/iks-classic"
+  },
+  "template_data": [
+    {
+      "folder": "terraform/iks-classic",
+      "type": "terraform_v1.0",
+      "variablestore": [
+        {
+          "name": "org",
+          "secure": false,
+          "value": "dev-advo",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "space",
+          "secure": false,
+          "value": "dev",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "kube_version",
+          "secure": false,
+          "value": "1.20.10",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "resource_group",
+          "secure": false,
+          "value": "vpc",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "appid_plan",
+          "secure": false,
+          "value": "graduated-tier",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "appid_name",
+          "secure": false,
+          "value": "yhwang-classic-appid",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "cluster_name",
+          "secure": false,
+          "value": "yhwang-classic",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "ibmcloud_api_key",
+          "secure": true,
+          "value": "xxxxxxxx",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "password",
+          "secure": true,
+          "value": "",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "username",
+          "secure": true,
+          "value": "yh.wang@ibm.com",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "public_vlan_id",
+          "secure": false,
+          "value": "",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "private_vlan_id",
+          "secure": false,
+          "value": "",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "zone",
+          "secure": false,
+          "value": "sjc04",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "cluster_worker_count",
+          "secure": false,
+          "value": "2",
+          "type": "number",
+          "description": ""
+        }
+      ]
+    }
+  ]
+}

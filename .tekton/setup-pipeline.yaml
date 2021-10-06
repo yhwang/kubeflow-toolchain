@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: setup-kubeflow
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-username
+      description: a username used in terraform scripts
+  workspaces:
+  - name: pipeline-pvc
+  tasks:
+    - name: setup-kubeflow
+      taskRef:
+        name: profile-creation
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc

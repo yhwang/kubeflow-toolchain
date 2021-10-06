@@ -1,0 +1,264 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: profile-creation
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: apikey
+    - name: username
+      description: username
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: resource-group
+      description: resource group
+      default: "default"
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  results:
+    - name: user-namespace
+      description: namespace for the user profile
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: create-user-profile
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: CLUSTER_NAME_VAR
+          value: $(params.cluster-name)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: USERNAME_VAR
+          value: $(params.username)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          if ! ibmcloud ks cluster config -c "$CLUSTER_NAME_VAR"; then
+            echo " ===== failed to retrieve cluster config  ====="
+            exit 1
+          fi
+
+          NAMESPACE=$(echo -n "$USERNAME_VAR" | cut -d@ -f1 | sed -r 's/[^[:alnum:]]|\./-/g' | sed -r 's/^-+|-+$|_//g')
+
+          PROFILE=$(cat << EOF
+          apiVersion: kubeflow.org/v1
+          kind: Profile
+          metadata:
+            name: $NAMESPACE
+          spec:
+            owner:
+              kind: User
+              name: $USERNAME_VAR
+            resourceQuotaSpec: {}
+          EOF
+          )
+
+          if ! echo "$PROFILE" | kubectl apply -f -; then
+            echo " ===== failed to create profile ====="
+            exit 1
+          fi
+
+          REV=1
+          ENDTIME=$(date -ud "1 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            NS_STATUS=$(kubectl get ns "$NAMESPACE" -o json | jq -r '.status.phase')
+            if [[ "$NS_STATUS" == "Active" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Status of namespace: $NS_STATUS"
+            sleep 10
+          done
+
+          if [[ $REV -ne 0 ]]; then
+            echo " ===== failed to bring up the user namespace ====="
+            exit 1
+          fi
+
+          REV=1
+          ENDTIME=$(date -ud "5 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            POD_NUM=$(kubectl get pod -n "$NAMESPACE" | tail -n +2 | wc -l)
+            if [[ $POD_NUM -ge 2 ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Number of Running Pods: $POD_NUM"
+            sleep 10
+          done
+
+          if [[ $REV -ne 0 ]]; then
+            echo " ===== default pods under user namespace failed to startup"
+            exit 1
+          fi
+
+          PODDEFAULT=$(cat << EOF
+          apiVersion: kubeflow.org/v1alpha1
+          kind: PodDefault
+          metadata:
+            name: access-ml-pipeline
+            namespace: $NAMESPACE
+          spec:
+            desc: Allow access to Kubeflow Pipelines
+            selector:
+              matchLabels:
+                access-ml-pipeline: "true"
+            volumes:
+              - name: volume-kf-pipeline-token
+                projected:
+                  sources:
+                    - serviceAccountToken:
+                        path: token
+                        expirationSeconds: 7200
+                        audience: pipelines.kubeflow.org
+            volumeMounts:
+              - mountPath: /var/run/secrets/kubeflow/pipelines
+                name: volume-kf-pipeline-token
+                readOnly: true
+            env:
+              - name: KF_PIPELINES_SA_TOKEN_PATH
+                value: /var/run/secrets/kubeflow/pipelines/token
+          EOF
+          )
+
+          if ! echo "$PODDEFAULT" | kubectl apply -f -; then
+            echo "  ===== create Poddefault failed ====="
+            exit 1
+          fi
+
+          PVC=$(cat << EOF
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: workspace-mynotebook
+            namespace: $NAMESPACE
+          spec:
+            accessModes:
+            - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+            storageClassName: ibmc-file-gold-gid
+          EOF
+          )
+
+          if ! echo "$PVC" | kubectl apply -f -; then
+            echo " ===== not able to create pvc for notebook"
+            exit 1
+          fi
+
+          REV=1
+          ENDTIME=$(date -ud "15 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            PVC_STATUS=$(kubectl get pvc -n "$NAMESPACE" -o json workspace-mynotebook | jq -r '.status.phase')
+            if [[ "$PVC_STATUS" == "Bound" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  PVC statuc: $PVC_STATUS"
+            sleep 10
+          done
+
+          if [[ $REV -ne 0 ]]; then
+            echo " ===== PVC can't be allocated for notebook ====="
+            exit 1
+          fi
+
+          NOTEBOOK=$(cat << EOF
+          apiVersion: kubeflow.org/v1
+          kind: Notebook
+          metadata:
+            annotations:
+              notebooks.kubeflow.org/server-type: jupyter
+            labels:
+              access-ml-pipeline: "true"
+              app: mynotebook
+            name: mynotebook
+            namespace: $NAMESPACE
+          spec:
+            template:
+              spec:
+                containers:
+                - env: []
+                  image: public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.4-rc.1
+                  imagePullPolicy: IfNotPresent
+                  name: mynotebook
+                  resources:
+                    limits:
+                      cpu: "0.6"
+                      memory: 1.2Gi
+                    requests:
+                      cpu: "0.5"
+                      memory: 1Gi
+                  volumeMounts:
+                  - mountPath: /home/jovyan
+                    name: workspace-mynotebook
+                  - mountPath: /dev/shm
+                    name: dshm
+                serviceAccountName: default-editor
+                tolerations: []
+                volumes:
+                - name: workspace-mynotebook
+                  persistentVolumeClaim:
+                    claimName: workspace-mynotebook
+                - emptyDir:
+                    medium: Memory
+                  name: dshm
+          EOF
+          )
+
+          if ! echo "$NOTEBOOK" | kubectl apply -f -; then
+            echo " =====  Failed to create notebook ====="
+            exit 1
+          fi
+
+          REV=1
+          ENDTIME=$(date -ud "10 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            NB_STATUS=$(kubectl get pod -n "$NAMESPACE" mynotebook-0 -o json | jq -r '.status.phase')
+            if [[ "$NB_STATUS" == "Running" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Status of notebook pod: $NB_STATUS"
+            sleep 10
+          done
+
+          if [[ $REV -eq 0 ]]; then
+            echo " ===== notebook is running ====="
+          else
+            echo " ===== failed to create notebook ====="
+          fi
+
+          echo -n "$NAMESPACE" > $(results.user-namespace.path)
+          exit "$REV"

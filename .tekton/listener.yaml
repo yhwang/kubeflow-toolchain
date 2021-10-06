@@ -1,0 +1,277 @@
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: deploy-kubeflow
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: repository
+      description: The git repo
+    - name: revision
+      description: the branch for the git repo
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-url
+      description: repo url where the terraform scripts are
+    - name: terraform-folder
+      description: terraform folder from the branch root
+    - name: terraform-username
+      description: a username used in terraform scripts
+    - name: terraform-password
+      description: a password used in terraform scripts
+    - name: terraform-public-vlan-id
+      description: public vlan id used in terraform scripts
+      default: ""
+    - name: terraform-private-vlan-id
+      description: private vlan id used in terraform scripts
+      default: ""
+    - name: terraform-cluster-worker-count
+      description: cluster_worker_count used in terraform scripts
+      default: "2"
+    - name: terraform-cluster-name
+      description: cluster_name used in terraform scripts
+    - name: terraform-zone
+      description: zone for terraform scripts
+      default: ""
+    - name: terraform-appid-name
+      description: appid name prefix
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+            name: deploy-kubeflow
+        workspaces:
+          - name: pipeline-pvc
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc
+        params:
+        - name: workspace-name
+          value: $(params.workspace-name)
+        - name: repository
+          value: $(params.repository)
+        - name: revision
+          value: $(params.revision)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: terraform-url
+          value: $(params.terraform-url)
+        - name: terraform-folder
+          value: $(params.terraform-folder)
+        - name: terraform-username
+          value: $(params.terraform-username)
+        - name: terraform-password
+          value: $(params.terraform-password)
+        - name: terraform-public-vlan-id
+          value: $(params.terraform-public-vlan-id)
+        - name: terraform-private-vlan-id
+          value: $(params.terraform-private-vlan-id)
+        - name: terraform-cluster-worker-count
+          value: $(params.terraform-cluster-worker-count)
+        - name: terraform-cluster-name
+          value: $(params.terraform-cluster-name)
+        - name: terraform-zone
+          value: $(params.terraform-zone)
+        - name: terraform-appid-name
+          value: $(params.terraform-appid-name)
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: setup-kubeflow
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-username
+      description: a username used in terraform scripts
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+            name: setup-kubeflow
+        workspaces:
+          - name: pipeline-pvc
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc
+        params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: terraform-username
+          value: $(params.terraform-username)
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: remove-kubeflow
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: workspace-name
+      description: workspace name
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+            name: remove-kubeflow
+        workspaces:
+          - name: pipeline-pvc
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc
+        params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: workspace-name
+          value: $(params.workspace-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: binding
+spec:
+  params:
+    - name: repository
+      value: "https://github.com/kubeflow/kfp-tekton"
+    - name: revision
+      value: "master"
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: listener-deploy
+spec:
+  triggers:
+    - binding:
+        name: binding
+      template:
+        name: deploy-kubeflow
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: listener-setup
+spec:
+  triggers:
+    - binding:
+        name: binding
+      template:
+        name: setup-kubeflow
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: listener-remove
+spec:
+  triggers:
+    - binding:
+        name: binding
+      template:
+        name: remove-kubeflow

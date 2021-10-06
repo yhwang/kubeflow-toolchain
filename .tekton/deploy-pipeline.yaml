@@ -1,0 +1,147 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: deploy-kubeflow
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: repository
+      description: The git repo
+    - name: revision
+      description: the branch for the git repo
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-url
+      description: repo url where the terraform scripts are (including the branch and path)
+    - name: terraform-folder
+      description: terraform folder from the branch root
+    - name: terraform-username
+      description: a username used in terraform scripts
+    - name: terraform-password
+      description: a password used in terraform scripts
+    - name: terraform-public-vlan-id
+      description: public vlan id used in terraform scripts
+      default: ""
+    - name: terraform-private-vlan-id
+      description: private vlan id used in terraform scripts
+      default: ""
+    - name: terraform-zone
+      description: zone for terraform scripts
+    - name: terraform-cluster-worker-count
+      description: cluster_worker_count used in terraform scripts
+      default: "2"
+    - name: terraform-cluster-name
+      description: cluster_name used in terraform scripts
+    - name: terraform-appid-name
+      description: appid prefix
+  workspaces:
+  - name: pipeline-pvc
+  tasks:
+    - name: clone-repo
+      taskRef:
+        name: git-clone
+      params:
+        - name: repository
+          value: $(params.repository)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: create-workspace
+      taskRef:
+        name: schematics-workspace-create
+      runAfter:
+        - clone-repo
+      params:
+        - name: workspace-name
+          value: $(params.workspace-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: password
+          value: $(params.terraform-password)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: terraform-url
+          value: $(params.terraform-url)
+        - name: terraform-folder
+          value: $(params.terraform-folder)
+        - name: private-vlan-id
+          value: $(params.terraform-private-vlan-id)
+        - name: public-vlan-id
+          value: $(params.terraform-public-vlan-id)
+        - name: cluster-name
+          value: $(params.terraform-cluster-name)
+        - name: cluster-worker-count
+          value: $(params.terraform-cluster-worker-count)
+        - name: appid-name
+          value: $(params.terraform-appid-name)
+        - name: zone
+          value: $(params.terraform-zone)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: apply-workspace
+      taskRef:
+        name: schematics-workspace-apply
+      runAfter:
+        - create-workspace
+      params:
+        - name: workspace-id
+          value: "$(tasks.create-workspace.results.workspace-id)"
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: setup-kubeflow
+      taskRef:
+        name: profile-creation
+      runAfter:
+        - apply-workspace
+      params:
+        - name: cluster-name
+          value: $(tasks.apply-workspace.results.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc

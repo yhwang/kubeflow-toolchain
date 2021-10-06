@@ -1,0 +1,66 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: remove-kubeflow
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+  workspaces:
+  - name: pipeline-pvc
+  tasks:
+    - name: delete-profile
+      taskRef:
+        name: profile-deletion
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: destroy-workspace
+      taskRef:
+        name: schematics-workspace-destroy
+      runAfter:
+        - delete-profile
+      params:
+        - name: workspace-name
+          value: $(params.workspace-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc

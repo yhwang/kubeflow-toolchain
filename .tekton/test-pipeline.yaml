@@ -1,0 +1,146 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: test-kubeflow
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-username
+      description: a username used in terraform scripts
+    - name: kfp-version
+      description: kfp package version
+      default: "1.7.2"
+    - name: kubeflow-katib-version
+      description: kubeflow-katib version
+      default: "0.11.1"
+    - name: kfp-tekton-version
+      description: kfp-tekton version
+      default: "1.0.0"
+    - name: kubernetes-version
+      description: kubernetes version
+      default: "12.0.1"
+  workspaces:
+  - name: pipeline-pvc
+  tasks:
+    - name: prepare-testing-env
+      taskRef:
+        name: venv-creation
+      params:
+        - name: kfp-version
+          value: $(params.kfp-version)
+        - name: kubeflow-katib-version
+          value: $(params.kubeflow-katib-version)
+        - name: kfp-tekton-version
+          value: $(params.kfp-tekton-version)
+        - name: kubernetes-version
+          value: $(params.kubernetes-version)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: flip-coin-1
+      taskRef:
+        name: flip-coin
+      runAfter:
+        - prepare-testing-env
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: flip-coin-2
+      taskRef:
+        name: flip-coin
+      runAfter:
+        - prepare-testing-env
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: flip-coin-3
+      taskRef:
+        name: flip-coin
+      runAfter:
+        - flip-coin-1
+        - flip-coin-2
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc
+    - name: e2e-mnist
+      taskRef:
+        name: e2e-mnist
+      runAfter:
+        - flip-coin-3
+      params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: apikey
+          value: $(params.apikey)
+        - name: username
+          value: $(params.terraform-username)
+        - name: region
+          value: $(params.region)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: resource-group
+          value: $(params.resource-group)
+      workspaces:
+      - name: task-pvc
+        workspace: pipeline-pvc

@@ -233,6 +233,88 @@ spec:
           value: $(params.space)
 ---
 apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: test-kubeflow
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: terraform-username
+      description: username for terraform scripts
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: kfp-version
+      description: kfp package version
+      default: "1.7.2"
+    - name: kubeflow-katib-version
+      description: kubeflow-katib version
+      default: "0.11.1"
+    - name: kfp-tekton-version
+      description: kfp-tekton version
+      default: "1.0.0"
+    - name: kubernetes-version
+      description: kubernetes version
+      default: "12.0.1"
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: pipelinerun-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: pipelinerun-$(uid)
+      spec:
+        pipelineRef:
+            name: test-kubeflow
+        workspaces:
+          - name: pipeline-pvc
+            persistentVolumeClaim:
+              claimName: pipelinerun-$(uid)-pvc
+        params:
+        - name: cluster-name
+          value: $(params.cluster-name)
+        - name: terraform-username
+          value: $(params.terraform-username)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: kfp-version
+          value: $(params.kfp-version)
+        - name: kubeflow-katib-version
+          value: $(params.kubeflow-katib-version)
+        - name: kfp-tekton-version
+          value: $(params.kfp-tekton-version)
+        - name: kubernetes-version
+          value: $(params.kubernetes-version)
+---
+apiVersion: tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: binding
@@ -275,3 +357,14 @@ spec:
         name: binding
       template:
         name: remove-kubeflow
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: listener-test
+spec:
+  triggers:
+    - binding:
+        name: binding
+      template:
+        name: test-kubeflow

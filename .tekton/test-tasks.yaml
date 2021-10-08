@@ -1,0 +1,373 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: venv-creation
+spec:
+  params:
+    - name: kfp-version
+      description: kfp package version
+      default: "1.7.2"
+    - name: kubeflow-katib-version
+      description: kubeflow-katib version
+      default: "0.11.1"
+    - name: kfp-tekton-version
+      description: kfp-tekton-version
+      default: "1.0.0"
+    - name: kubernetes-version
+      description: kubernetes version
+      default: "12.0.1"
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  results:
+    - name: user-namespace
+      description: namespace for the user profile
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: create-venv
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: KFP_VERSION
+          value: $(params.kfp-version)
+        - name: KATIB_VERSION
+          value: $(params.kubeflow-katib-version)
+        - name: KFP_TEKTON_VERSION
+          value: $(params.kfp-tekton-version)
+        - name: KUBERNETES_VERSION
+          value: $(params.kubernetes-version)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install kfp==$KFP_VERSION
+          pip install kubeflow-katib==$KATIB_VERSION
+          pip install pip install kfp-tekton==$KFP_TEKTON_VERSION
+          pip install kubernetes==$KUBERNETES_VERSION
+          pip install Pillow
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: flip-coin
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: apikey
+    - name: username
+      description: username
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: resource-group
+      description: resource group
+      default: "default"
+    - name: experiment-name
+      description: name of the experiment
+      default: 'flip-coin-exp'
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: run-test
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: CLUSTER_NAME_VAR
+          value: $(params.cluster-name)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: USERNAME_VAR
+          value: $(params.username)
+        - name: EXPERIMENT_NAME
+          value: $(params.experiment-name)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          if ! ibmcloud ks cluster config -c "$CLUSTER_NAME_VAR"; then
+            echo " ===== failed to retrieve cluster config  ====="
+            exit 1
+          fi
+
+          NAMESPACE=$(echo -n "$USERNAME_VAR" | cut -d@ -f1 | sed -r 's/[^[:alnum:]]|\./-/g' | sed -r 's/^-+|-+$|_//g')
+
+          CONTEXT=$(cat << EOF
+          {
+            "namespace": "$NAMESPACE",
+            "client_authentication_header_name": "kubeflow-userid",
+            "client_authentication_header_value": "$USERNAME_VAR"
+          } 
+          EOF
+          )
+
+          if [[ ! -f .venv/bin/activate ]]; then
+            echo " ===== no venv ====="
+            exit 1
+          fi
+          . .venv/bin/activate
+
+          mkdir -p ~/.config/kfp/
+          echo "$CONTEXT" > ~/.config/kfp/context.json
+
+          kubectl port-forward -n kubeflow svc/ml-pipeline 8888:8888 &
+          sleep 20
+
+          FLIP_COIN_ID=$(kfp --endpoint http://localhost:8888/ pipeline list | grep 'flip-coin' | awk '{print $2}')
+
+          if [[ "$FLIP_COIN_ID" == "" ]]; then
+            echo " ===== no flip coin pipeline ====="
+            exit 1
+          fi
+
+          # create experiment
+          kfp --endpoint http://localhost:8888 experiment create "$EXPERIMENT_NAME"
+
+          RUN_NAME="e2e-flip-coin-run-$((RANDOM%10000+1))"
+          RUN_REV=$(kfp --endpoint http://localhost:8888 run submit -r "$RUN_NAME" -p "$FLIP_COIN_ID" -e "$EXPERIMENT_NAME")
+          RUN_ID=$(echo "$RUN_REV" | grep "$RUN_NAME" | awk '{print $2}')
+          if [[ -z "$RUN_ID" ]]; then
+            echo " ===== Failed to submit a run for flip coin pipeline ====="
+            echo "$RUN_REV"
+            exit 1
+          fi
+
+          ENDTIME=$(date -ud "10 minute" +%s)
+          REV=1
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            RUN_STATUS=$(kfp --endpoint http://localhost:8888 run list | grep "$RUN_NAME" | awk '{print $6}')
+            if [[ "$RUN_STATUS" == "Completed" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Status of flip coin run: $RUN_STATUS"
+            sleep 10
+          done
+
+          if [[ "$REV" -eq 0 ]]; then
+            echo " =====   flip coin sample PASSED ====="
+          else
+            echo " =====   flip coin sample FAILED ====="
+          fi
+
+          # stop port-forward
+          kill %1
+          exit "$REV"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: e2e-mnist
+spec:
+  params:
+    - name: cluster-name
+      description: cluster name
+    - name: apikey
+      description: apikey
+    - name: username
+      description: username
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: resource-group
+      description: resource group
+      default: "default"
+    - name: experiment-name
+      description: name of the experiment
+      default: 'e2e-minst-exp'
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: run-test
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: CLUSTER_NAME_VAR
+          value: $(params.cluster-name)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: USERNAME_VAR
+          value: $(params.username)
+        - name: EXPERIMENT_NAME
+          value: $(params.experiment-name)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          if ! ibmcloud ks cluster config -c "$CLUSTER_NAME_VAR"; then
+            echo " ===== failed to retrieve cluster config  ====="
+            exit 1
+          fi
+
+          NAMESPACE=$(echo -n "$USERNAME_VAR" | cut -d@ -f1 | sed -r 's/[^[:alnum:]]|\./-/g' | sed -r 's/^-+|-+$|_//g')
+
+          CONTEXT=$(cat << EOF
+          {
+            "namespace": "$NAMESPACE",
+            "client_authentication_header_name": "kubeflow-userid",
+            "client_authentication_header_value": "$USERNAME_VAR"
+          } 
+          EOF
+          )
+
+          if [[ ! -f .venv/bin/activate ]]; then
+            echo " ===== no venv ====="
+            exit 1
+          fi
+          . .venv/bin/activate
+
+          mkdir -p ~/.config/kfp/
+          echo "$CONTEXT" > ~/.config/kfp/context.json
+
+          kubectl port-forward -n kubeflow svc/ml-pipeline 8888:8888 &
+          sleep 20
+
+          PIPELINE_NAME="e2e-mnist-$((RANDOM%10000+1))"
+          curl -l https://raw.githubusercontent.com/kubeflow/kfp-tekton/master/samples/e2e-mnist/e2e-mnist.py -o mnist.py
+
+          python mnist.py
+          if [[ ! -f mnist.yaml ]]; then
+            echo " ===== not able to compile mnist.py to mnist.yaml"
+            exit 1
+          fi
+
+          yq eval '.spec.params[1].value="'$$NAMESPACE'"' -i mnist.yaml
+          yq eval '(.spec.pipelineSpec.tasks[].taskSpec.metadata.labels."pipelines.kubeflow.org/cache_enabled") |= "false"' -i mnist.yaml
+          kfp --endpoint http://localhost:8888 pipeline upload -p "$PIPELINE_NAME" mnist.yaml
+
+          PIPELINE_ID=$(kfp --endpoint http://localhost:8888/ pipeline list | grep "$PIPELINE_NAME" | awk '{print $2}')
+
+          if [[ "$PIPELINE_ID" == "" ]]; then
+            echo " ===== no e2e-mnist pipeline ====="
+            exit 1
+          fi
+
+          # create experiment
+          kfp --endpoint http://localhost:8888 experiment create "$EXPERIMENT_NAME"
+
+          RUN_NAME="e2e-mnist-run-$((RANDOM%10000+1))"
+          RUN_REV=$(kfp --endpoint http://localhost:8888 run submit -r "$RUN_NAME" -p "$PIPELINE_ID" -e "$EXPERIMENT_NAME")
+          RUN_ID=$(echo "$RUN_REV" | grep "$RUN_NAME" | awk '{print $2}')
+          if [[ -z "$RUN_ID" ]]; then
+            echo " ===== Failed to submit a run for e2e-mnist pipeline ====="
+            echo "$RUN_REV"
+            exit 1
+          fi
+
+          ENDTIME=$(date -ud "30 minute" +%s)
+          REV=1
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            RUN_STATUS=$(kfp --endpoint http://localhost:8888 run list | grep "$RUN_NAME" | awk '{print $6}')
+            if [[ "$RUN_STATUS" == "Succeeded" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Status of e2e-mnist run: $RUN_STATUS"
+            sleep 30
+          done
+          echo "  Status of e2e-mnist run: $RUN_STATUS"
+
+          if [[ "$REV" -ne 0 ]]; then
+            echo " =====   e2e-mnist FAILED ====="
+            exit 1
+          fi
+
+          PREDICTOR_HOST=$(kubectl get inferenceservice mnist-e2e -n "$NAMESPACE" -o json | jq -r '.status.components.predictor.url')
+          curl -l https://raw.githubusercontent.com/kubeflow/kfp-tekton/master/samples/e2e-mnist/9.bmp -o test.bmp
+
+          TEST_SCRIPT=$(cat << EOF
+          import numpy as np
+          from PIL import Image
+          import requests
+          image = Image.open("test.bmp")
+          data = np.array(image.convert('L').resize((28, 28))).astype(np.float).reshape(-1, 28, 28, 1)
+          data_formatted = np.array2string(data, separator=",", formatter={"float": lambda x: "%.1f" % x})
+          json_request = '{{ "instances" : {} }}'.format(data_formatted)
+
+          url = "$PREDICTOR_HOST/v1/models/mnist-e2e:predict"
+          response = requests.post(url, data=json_request)
+
+          print("Prediction for the image 9")
+          print(response.json())
+          EOF
+          )
+          echo "$TEST_SCRIPT" > test.py
+
+          PREDICTOR_RESULT=$(python test.py 2>/dev/null)
+          echo "Response from predictor:"
+          echo "$PREDICTOR_RESULT"
+          if ! echo "$PREDICTOR_RESULT" | grep -q "'classes': 9"; then
+            echo " ===== prediction result is wrong ====="
+            echo "$PREDICTOR_RESULT"
+            exit 1
+          fi
+
+          # stop port-forward
+          kill %1

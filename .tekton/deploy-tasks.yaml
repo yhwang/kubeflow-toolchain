@@ -186,7 +186,7 @@ spec:
             jq '(..|select(.name?=="zone")).value |= "'"$ZONE_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           fi
 
-          jq '.template_url|= "'"$TERRAFORM_URI"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '.template_repo.url|= "'"$TERRAFORM_URI"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '.template_data[0].folder|= "'"$TERRAFORM_FOLDER"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
 
           ibmcloud login --apikey "${API_KEY}" --no-region

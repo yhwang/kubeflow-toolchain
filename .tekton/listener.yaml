@@ -23,6 +23,9 @@ spec:
     - name: resource-group
       description: resource group
       default: default
+    - name: terraform-kube-version
+      description: kube version for terraform
+      default: "1.20.10"
     - name: terraform-url
       description: repo url where the terraform scripts are
     - name: terraform-folder
@@ -87,6 +90,8 @@ spec:
           value: $(params.org)
         - name: space
           value: $(params.space)
+        - name: terraform-kube-version
+          value: $(params.terraform-kube-version)
         - name: terraform-url
           value: $(params.terraform-url)
         - name: terraform-folder

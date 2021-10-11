@@ -23,6 +23,9 @@ spec:
     - name: resource-group
       description: resource group
       default: default
+    - name: terraform-kube-version
+      description: kube version in terraform script
+      default: "1.20.10"
     - name: terraform-url
       description: repo url where the terraform scripts are (including the branch and path)
     - name: terraform-folder
@@ -90,6 +93,8 @@ spec:
           value: $(params.terraform-private-vlan-id)
         - name: public-vlan-id
           value: $(params.terraform-public-vlan-id)
+        - name: kube-version
+          value: $(params.terraform-kube-version)
         - name: cluster-name
           value: $(params.terraform-cluster-name)
         - name: cluster-worker-count

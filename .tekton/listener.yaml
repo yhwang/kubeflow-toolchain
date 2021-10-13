@@ -54,7 +54,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: pipelinerun-$(uid)-pvc
+        name: deploy-kf-$(uid)-pvc
       spec:
         resources:
           requests:
@@ -65,14 +65,14 @@ spec:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        name: pipelinerun-$(uid)
+        name: deploy-kf-$(uid)
       spec:
         pipelineRef:
             name: deploy-kubeflow
         workspaces:
           - name: pipeline-pvc
             persistentVolumeClaim:
-              claimName: pipelinerun-$(uid)-pvc
+              claimName: deploy-kf-$(uid)-pvc
         params:
         - name: workspace-name
           value: $(params.workspace-name)
@@ -116,6 +116,101 @@ spec:
 apiVersion: tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
+  name: deploy-kubeflow-on-existing-iks
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: repository
+      description: The git repo
+    - name: revision
+      description: the branch for the git repo
+    - name: apikey
+      description: the ibmcloud api key
+    - name: region
+      description: the ibmcloud registry region
+      default: us-south
+    - name: org
+      description: organization
+    - name: space
+      description: space
+      default: dev
+    - name: resource-group
+      description: resource group
+      default: default
+    - name: terraform-kube-version
+      description: kube version for terraform
+      default: "1.20.10"
+    - name: terraform-url
+      description: repo url where the terraform scripts are
+    - name: terraform-folder
+      description: terraform folder from the branch root
+    - name: terraform-username
+      description: a username used in terraform scripts
+    - name: terraform-password
+      description: a password used in terraform scripts
+    - name: terraform-cluster-name
+      description: cluster_name used in terraform scripts
+    - name: terraform-appid-name
+      description: appid name
+  resourcetemplates:
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: deploy-kf-$(uid)-pvc
+      spec:
+        resources:
+          requests:
+            storage:  5Gi
+        volumeMode: Filesystem
+        accessModes:
+          - ReadWriteOnce
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: deploy-kf-on-existing-iks-$(uid)
+      spec:
+        pipelineRef:
+            name: deploy-kubeflow
+        workspaces:
+          - name: pipeline-pvc
+            persistentVolumeClaim:
+              claimName: deploy-kf-$(uid)-pvc
+        params:
+        - name: workspace-name
+          value: $(params.workspace-name)
+        - name: repository
+          value: $(params.repository)
+        - name: revision
+          value: $(params.revision)
+        - name: apikey
+          value: $(params.apikey)
+        - name: region
+          value: $(params.region)
+        - name: resource-group
+          value: $(params.resource-group)
+        - name: org
+          value: $(params.org)
+        - name: space
+          value: $(params.space)
+        - name: terraform-kube-version
+          value: $(params.terraform-kube-version)
+        - name: terraform-url
+          value: $(params.terraform-url)
+        - name: terraform-folder
+          value: $(params.terraform-folder)
+        - name: terraform-username
+          value: $(params.terraform-username)
+        - name: terraform-password
+          value: $(params.terraform-password)
+        - name: terraform-cluster-name
+          value: $(params.terraform-cluster-name)
+        - name: terraform-appid-name
+          value: $(params.terraform-appid-name)
+---
+apiVersion: tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
   name: setup-kubeflow
 spec:
   params:
@@ -140,7 +235,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: pipelinerun-$(uid)-pvc
+        name: setup-kf-$(uid)-pvc
       spec:
         resources:
           requests:
@@ -151,14 +246,14 @@ spec:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        name: pipelinerun-$(uid)
+        name: setup-kf-$(uid)
       spec:
         pipelineRef:
             name: setup-kubeflow
         workspaces:
           - name: pipeline-pvc
             persistentVolumeClaim:
-              claimName: pipelinerun-$(uid)-pvc
+              claimName: setup-kf-$(uid)-pvc
         params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -202,7 +297,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: pipelinerun-$(uid)-pvc
+        name: remove-kf-$(uid)-pvc
       spec:
         resources:
           requests:
@@ -213,14 +308,14 @@ spec:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        name: pipelinerun-$(uid)
+        name: remove-kf-$(uid)
       spec:
         pipelineRef:
             name: remove-kubeflow
         workspaces:
           - name: pipeline-pvc
             persistentVolumeClaim:
-              claimName: pipelinerun-$(uid)-pvc
+              claimName: remove-kf-$(uid)-pvc
         params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -276,7 +371,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: pipelinerun-$(uid)-pvc
+        name: test-kf-$(uid)-pvc
       spec:
         resources:
           requests:
@@ -287,14 +382,14 @@ spec:
     - apiVersion: tekton.dev/v1beta1
       kind: PipelineRun
       metadata:
-        name: pipelinerun-$(uid)
+        name: test-kf-$(uid)
       spec:
         pipelineRef:
             name: test-kubeflow
         workspaces:
           - name: pipeline-pvc
             persistentVolumeClaim:
-              claimName: pipelinerun-$(uid)-pvc
+              claimName: test-kf-$(uid)-pvc
         params:
         - name: cluster-name
           value: $(params.cluster-name)
@@ -340,6 +435,17 @@ spec:
         name: binding
       template:
         name: deploy-kubeflow
+---
+apiVersion: tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: listener-deploy-on-existing-iks
+spec:
+  triggers:
+    - binding:
+        name: binding
+      template:
+        name: deploy-kubeflow-on-existing-iks
 ---
 apiVersion: tekton.dev/v1beta1
 kind: EventListener

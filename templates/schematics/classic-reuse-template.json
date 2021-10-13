@@ -1,24 +1,24 @@
 {
-  "name": "yhwang-auto-vpc",
+  "name": "workspace-name",
   "type": [
     "terraform_v1.0"
   ],
-  "description": "Deploy kubeflow on IKS",
+  "description": "deploy kubeflow on IKS",
   "resource_group": "default",
   "location": "us-east",
+  "tags": [],
   "template_repo": {
-    "url": "https://github.com/IBM/auto-kubeflow/tree/main/terraform/iks-vpc-gen2",
-    "full_url": "https://github.com/IBM/auto-kubeflow/tree/main/terraform/iks-vpc-gen2"
+    "url": "https://github.com/IBM/auto-kubeflow/tree/main/terraform/iks-classic-reuse"
   },
   "template_data": [
     {
-      "folder": "terraform/iks-vpc-gen2",
+      "folder": "terraform/iks-classic-reuse",
       "type": "terraform_v1.0",
       "variablestore": [
         {
-          "name": "org",
-          "secure": false,
-          "value": "dev-advo",
+          "name": "ibmcloud_api_key",
+          "secure": true,
+          "value": "Sensitive value stored on server",
           "type": "string",
           "description": ""
         },
@@ -26,6 +26,13 @@
           "name": "region",
           "secure": false,
           "value": "us-south",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "org",
+          "secure": false,
+          "value": "dev-advo",
           "type": "string",
           "description": ""
         },
@@ -39,60 +46,47 @@
         {
           "name": "kube_version",
           "secure": false,
-          "value": "1.20.10",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "cluster_name",
-          "secure": false,
-          "value": "yhwang-auto-kf-vpc",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "appid_name",
-          "secure": false,
-          "value": "yhwang-auto-appid",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "username",
-          "secure": true,
-          "value": "yh.wang@ibm.com",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "password",
-          "secure": true,
-          "value": "",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "appid_plan",
-          "secure": false,
-          "value": "graduated-tier",
-          "type": "string",
-          "description": ""
-        },
-        {
-          "name": "ibmcloud_api_key",
-          "secure": true,
-          "value": "",
+          "value": "1.20.11",
           "type": "string",
           "description": ""
         },
         {
           "name": "resource_group",
           "secure": false,
-          "value": "vpc",
+          "value": "resource-group",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "appid_name",
+          "secure": false,
+          "value": "appid-instance-name",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "cluster_name",
+          "secure": false,
+          "value": "cluster-name",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "username",
+          "secure": false,
+          "value": "your user email",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "password",
+          "secure": true,
+          "value": "Sensitive value stored on server",
           "type": "string",
           "description": ""
         }
-      ]
+      ],
+      "has_githubtoken": false
     }
   ]
 }

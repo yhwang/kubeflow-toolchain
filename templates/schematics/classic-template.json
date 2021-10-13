@@ -1,5 +1,5 @@
 {
-  "name": "yhwang-classic-kfp-auto",
+  "name": "workspace-name",
   "type": [
     "terraform_v1.0"
   ],
@@ -68,6 +68,13 @@
           "name": "ibmcloud_api_key",
           "secure": true,
           "value": "xxxxxxxx",
+          "type": "string",
+          "description": ""
+        },
+        {
+          "name": "region",
+          "secure": false,
+          "value": "us-south",
           "type": "string",
           "description": ""
         },

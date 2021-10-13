@@ -166,6 +166,7 @@ spec:
           jq '(..|select(.name?=="ibmcloud_api_key")).value |= "'"$API_KEY"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '(..|select(.name?=="org")).value |= "'"$ORG_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '(..|select(.name?=="space")).value |= "'"$SPACE_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="region")).value |= "'"$REGION_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '(..|select(.name?=="resource_group")).value |= "'"$RESOURCE_GROUP_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '(..|select(.name?=="kube_version")).value |= "'"$KUBEVERSION_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
           jq '(..|select(.name?=="appid_name")).value |= "'"$APPID_NAME_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
@@ -213,6 +214,7 @@ spec:
           done
 
           if [[ "$REV" -eq 0 ]]; then
+            ibmcloud schematics workspace get -i "$WS_ID"
             echo " =====   Workspace created successfully ====="
           else
             echo " =====   Failed to create workspace ====="
@@ -322,4 +324,154 @@ spec:
           echo -n "$ACTIVITY_ID" > $(results.activity-id.path)
           echo -n "new-activity.json" > $(results.activity-json-path.path)
           echo -n "$CLUSTER_NAME" > $(results.cluster-name.path)
+          exit "$REV"
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: schematics-workspace-only-kubeflow-create
+spec:
+  params:
+    - name: workspace-name
+      description: schematics workspace name
+    - name: apikey
+      description: apikey
+    - name: username
+      description: username
+    - name: password
+      description: password
+    - name: region
+      description: region
+    - name: org
+      description: organization
+      default: "dev-advo"
+    - name: space
+      description: space
+      default: "dev"
+    - name: kube-version
+      description: kube version
+      default: "1.20.10"
+    - name: template-file
+      description: workspace template json
+      default: "templates/schematics/classic-reuse-template.json"
+    - name: resource-group
+      description: resource group
+      default: "kubeflow"
+    - name: terraform-url
+      description: url pointing to terraform scripts
+      default: "https://github.com/IBM/auto-kubeflow/tree/main/terraform/iks-classic-reuse"
+    - name: terraform-folder
+      description: terraform folder
+      default: terraform/iks-classic-reuse
+    - name: appid-name
+      description: appid prefix
+      default: "appid-auto"
+    - name: cluster-name
+      description: cluster name prefix
+      default: "kubeflow-auto"
+    - name: archive-dir
+      description: archive directory
+      default: "."
+  results:
+    - name: workspace-json-path
+      description: "workspace json file's path under archive directory"
+    - name: workspace-id
+      description: workspace id
+  workspaces:
+  - name: task-pvc
+    mountPath: /artifacts
+  steps:
+    - name: create-workspace
+      image: aipipeline/pipeline-base-image:1.3
+      env:
+        - name: WS_NAME
+          value: $(params.workspace-name)
+        - name: TERRAFORM_URI
+          value: $(params.terraform-url)
+        - name: TERRAFORM_FOLDER
+          value: $(params.terraform-folder)
+        - name: API_KEY
+          value: $(params.apikey)
+        - name: TEMPLATE_FILE
+          value: $(params.template-file)
+        - name: REGION_VAR
+          value: $(params.region)
+        - name: ORG_VAR
+          value: $(params.org)
+        - name: SPACE_VAR
+          value: $(params.space)
+        - name: RESOURCE_GROUP_VAR
+          value: $(params.resource-group)
+        - name: KUBEVERSION_VAR
+          value: $(params.kube-version)
+        - name: APPID_NAME_VAR
+          value: $(params.appid-name)
+        - name: CLUSTER_NAME_VAR
+          value: $(params.cluster-name)
+        - name: USERNAME_VAR
+          value: $(params.username)
+        - name: PASSWORD_VAR
+          value: $(params.password)
+        - name: BUILD_NUMBER
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['devops.cloud.ibm.com/build-number']
+        - name: ARCHIVE_DIR
+          value: $(params.archive-dir)
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          #!/bin/bash
+          cd /artifacts
+          TEMP_WS_JSON1=$(mktemp -p .)
+          TEMP_WS_JSON2=$(mktemp -p .)
+          cp "$TEMPLATE_FILE" "$TEMP_WS_JSON1"
+          jq '.name |= "'"$WS_NAME"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="ibmcloud_api_key")).value |= "'"$API_KEY"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="org")).value |= "'"$ORG_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="space")).value |= "'"$SPACE_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="region")).value |= "'"$REGION_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="resource_group")).value |= "'"$RESOURCE_GROUP_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="kube_version")).value |= "'"$KUBEVERSION_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="appid_name")).value |= "'"$APPID_NAME_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="cluster_name")).value |= "'"$CLUSTER_NAME_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="username")).value |= "'"$USERNAME_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="password")).value |= "'"$PASSWORD_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '(..|select(.name?=="cluster_worker_count")).value |= "'"$CLUSTER_WORKER_COUNT_VAR"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+
+          jq '.template_repo.url|= "'"$TERRAFORM_URI"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+          jq '.template_data[0].folder|= "'"$TERRAFORM_FOLDER"'"' "$TEMP_WS_JSON1" > "$TEMP_WS_JSON2" && cp "$TEMP_WS_JSON2" "$TEMP_WS_JSON1"
+
+          ibmcloud login --apikey "${API_KEY}" --no-region
+          ibmcloud target -r "$REGION_VAR" -o "$ORG_VAR" -s "$SPACE_VAR" -g "$RESOURCE_GROUP_VAR"
+
+          ibmcloud schematics workspace new -f "$TEMP_WS_JSON1" -j > new-ws.json
+          WS_ID=$(jq -r '.id' new-ws.json 2>/dev/null)
+
+          if [ "$WS_ID" = "" ]; then
+            echo " =====   Failed to create workspace ====="
+            exit 1
+          fi
+
+          REV=1
+          ENDTIME=$(date -ud "10 minute" +%s)
+          while [[ "$(date -u +%s)" -le "$ENDTIME" ]]; do
+            STATUS=$(ibmcloud schematics workspace get -i "$WS_ID" -j | jq -r '.status')
+            if [[ "$STATUS" == "INACTIVE" ]]; then
+              REV=0
+              break;
+            fi
+            echo "  Status of workspace: $STATUS"
+            sleep 10
+          done
+
+          if [[ "$REV" -eq 0 ]]; then
+            ibmcloud schematics workspace get -i "$WS_ID"
+            echo " =====   Workspace created successfully ====="
+          else
+            echo " =====   Failed to create workspace ====="
+          fi
+
+          echo -n "$WS_ID" > $(results.workspace-id.path)
+          echo -n "new-ws.json" > $(results.workspace-json-path.path)
           exit "$REV"

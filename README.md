@@ -1,7 +1,7 @@
 # kubeflow-toolchain
 Use toolchain service on IBM Cloud to verify Kubeflow deployment
 
-This repository provides several toolchain tasks (Tekton tasks) for Kubeflow, including
+This repository provides several toolchain tasks (Tekton Tasks) for Kubeflow, including
 - `schematics-workspace-create`: it creates a schematics workspace to point to
   [IBM/auto-kubeflow](https://github.com/IBM/auto-kubeflow) repository which contains
   terraform scripts for IKS creation and Kubeflow multi-user deployment.
@@ -16,12 +16,12 @@ This repository provides several toolchain tasks (Tekton tasks) for Kubeflow, in
 - `venv-creation`: create the virtualenv on the persistent volume claim and install
   `kfp` and related pip packages on it. This is needed by other testing tasks which
   need `kfp` CLI.
-- `flip-coin`: this dependes on the `venv-creation` task. It runs `flip coin` test case
-- `e2e-mnist`: this depends on the `venv-creation` task. It runs end-to-end mnist
+- `flip-coin`: this dependes on the `venv-creation` Task. It runs `flip coin` test case
+- `e2e-mnist`: this depends on the `venv-creation` Task. It runs end-to-end mnist
   test case which contains katib and inferenceservice in its kubeflow pipeline. It verifies
   if the external predictor can properly classify a `9` image.
 
-There are 4 Tekton pipelines that you can use for toolchain service:
+There are 4 Tekton Pipelines that you can use for toolchain service:
 - `deploy-kubeflow`: it creates a schematics workspace to provision IKS cluster,
   deploy Kubeflow and setup a Kubeflow profile for the specified user.
 - `setup-kubeflow`: it creates a Kubeflow profile on the target IKS cluster which

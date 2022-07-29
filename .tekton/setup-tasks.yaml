@@ -32,7 +32,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-user-profile
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)
@@ -210,7 +210,7 @@ spec:
               spec:
                 containers:
                 - env: []
-                  image: public.ecr.aws/j1r0q0g6/notebooks/notebook-servers/jupyter-scipy:v1.4-rc.1
+                  image: kubeflownotebookswg/jupyter-scipy:v1.6.0-rc.1
                   imagePullPolicy: IfNotPresent
                   name: mynotebook
                   resources:

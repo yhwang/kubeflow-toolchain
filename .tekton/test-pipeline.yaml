@@ -23,16 +23,16 @@ spec:
       description: a username used in terraform scripts
     - name: kfp-version
       description: kfp package version
-      default: "1.7.2"
+      default: "1.8.11"
     - name: kubeflow-katib-version
       description: kubeflow-katib version
-      default: "0.11.1"
+      default: "0.12.0"
     - name: kfp-tekton-version
       description: kfp-tekton version
-      default: "1.0.0"
+      default: "1.2.1"
     - name: kubernetes-version
       description: kubernetes version
-      default: "12.0.1"
+      default: "18.20.0"
   workspaces:
   - name: pipeline-pvc
   tasks:

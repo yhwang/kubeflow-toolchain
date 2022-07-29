@@ -27,7 +27,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: delete-profiles
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)
@@ -115,7 +115,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: destroy
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: WS_NAME
           value: $(params.workspace-name)

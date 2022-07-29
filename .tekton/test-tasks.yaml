@@ -6,16 +6,16 @@ spec:
   params:
     - name: kfp-version
       description: kfp package version
-      default: "1.7.2"
+      default: "1.8.11"
     - name: kubeflow-katib-version
       description: kubeflow-katib version
-      default: "0.12.0rc0"
+      default: "0.12.0"
     - name: kfp-tekton-version
       description: kfp-tekton-version
-      default: "1.1.1"
+      default: "1.2.1"
     - name: kubernetes-version
       description: kubernetes version
-      default: "12.0.1"
+      default: "18.20.0"
     - name: archive-dir
       description: archive directory
       default: "."
@@ -27,7 +27,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-venv
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: KFP_VERSION
           value: $(params.kfp-version)
@@ -92,7 +92,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: run-test
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)
@@ -228,7 +228,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: run-test
-      image: aipipeline/pipeline-base-image:1.3
+      image: aipipeline/pipeline-base-image:1.4
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)

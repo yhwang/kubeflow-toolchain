@@ -210,7 +210,7 @@ spec:
               spec:
                 containers:
                 - env: []
-                  image: kubeflownotebookswg/jupyter-scipy:v1.6.0-rc.1
+                  image: kubeflownotebookswg/jupyter-scipy:v1.7.0-rc.1
                   imagePullPolicy: IfNotPresent
                   name: mynotebook
                   resources:

@@ -22,7 +22,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: clone-repo
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: GIT_URL
           value: $(params.repository)
@@ -110,7 +110,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-workspace
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: WS_NAME
           value: $(params.workspace-name)
@@ -260,7 +260,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: apply
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: WS_ID
           value: $(params.workspace-id)
@@ -382,7 +382,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-workspace
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: WS_NAME
           value: $(params.workspace-name)

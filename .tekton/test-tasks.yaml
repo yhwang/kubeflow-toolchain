@@ -27,7 +27,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-venv
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: KFP_VERSION
           value: $(params.kfp-version)
@@ -93,7 +93,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: run-test
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)
@@ -229,7 +229,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: run-test
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)

@@ -32,7 +32,7 @@ spec:
     mountPath: /artifacts
   steps:
     - name: create-user-profile
-      image: aipipeline/pipeline-base-image:1.4
+      image: quay.io/aipipeline/pipeline-base-image:1.6
       env:
         - name: CLUSTER_NAME_VAR
           value: $(params.cluster-name)
